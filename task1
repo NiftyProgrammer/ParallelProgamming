@@ -1,0 +1,107 @@
+/*
+ * task1.c
+ *
+ *  Created on: Nov 18, 2014
+ *      Author: Umair
+ */
+
+
+#include <mpi.h>
+#include <math.h>
+
+/*
+ * Part a of Task 1
+ */
+void Bcast_simple (void *buffer, int count, MPI_Datatype datatype, MPI_Comm comm){
+	int i, numprocs;
+
+	MPI_Comm_size(comm, &numprocs);
+
+	for(i=1; i<numprocs; i++){
+		MPI_Send(buffer, count, datatype, i, MPI_ANY_TAG, comm);
+	}
+}
+
+
+/*
+ * Part c of Task 1
+ */
+int get_parent( int child, int num_nodes ){
+	if(child > 0)
+		return (roundf(child / 2.0f) - 1);
+	else
+		return -1;
+}
+
+int get_left_child( int parent, int num_nodes ){
+	if(parent > -1){
+		int lChild = parent * 2 + 1;
+		if(lChild >= num_nodes)
+			return -1;
+		else
+			return lChild;
+	}
+	else
+		return -1;
+}
+
+int get_right_child( int parent, int num_nodes ){
+	if(parent > -1){
+		int lChild = parent * 2 + 2;
+		if(lChild >= num_nodes)
+			return -1;
+		else
+			return lChild;
+	}
+	else
+		return -1;
+}
+
+/*
+ * Part d of Task 1
+ */
+void Bcast_tree (void *buffer, int count, MPI_Datatype datatype, MPI_Comm comm){
+	int num_nodes, child, parent, left_child, right_child;
+
+	MPI_Comm_size(comm, &num_nodes);
+	MPI_Comm_rank(MPI_COMM_WORLD, &child);
+
+	parent = get_parent(child, num_nodes);
+	if(parent != -1){
+		left_child = get_left_child(parent, num_nodes);
+		right_child = get_right_child(parent, num_nodes);
+		if(left_child != -1)
+			MPI_Send(buffer, count, datatype, left_child, MPI_ANY_TAG, comm);
+		if(right_child != -1)
+			MPI_Send(buffer, count, datatype, right_child, MPI_ANY_TAG, comm);
+	}
+}
+
+
+int main( int argc, char **argv ){
+
+	int id, numprocs;
+
+	MPI_Init( &argc, &argv );
+	MPI_Comm_rank(MPI_COMM_WORLD, &id);
+	MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+	char *stringValue = "Test String";
+	int size = strlen(stringValue);
+
+	if(id == 0){
+		int size = strlen(stringValue);
+		//Bcast_simple(stringValue, size, MPI_CHAR, MPI_COMM_WORLD);
+		Bcast_tree(stringValue, size, MPI_CHAR, MPI_COMM_WORLD);
+	}
+	else{
+		MPI_Status status;
+		char *returnedString;
+
+		MPI_Recv(returnedString, size, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+		printf("Processor %i, with value %s", id, returnedString);
+		Bcast_tree(returnedString, size, MPI_CHAR, MPI_COMM_WORLD);
+	}
+
+	MPI_Finalize();
+	return 0;
+}
